@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>向日葵的問號</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap">
+<style>
+/* 版面：全螢幕俯視地圖＋上方任務列＋下方對話框；觸控方向鍵左下、互動鈕右下。單一「田野筆記本」配色（不分深淺色）。 */
+:root{
+  --paper:#eef2e2; --paper2:#dfe7cc; --ink:#22302a; --ink2:#4d5d52;
+  --sun:#e9a51b; --leaf:#4f7a3a; --sky:#3c7fa6; --warn:#b8573a;
+  --font:"LXGW WenKai TC","PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;
+  color-scheme:light;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--ink);color:var(--ink);font-family:var(--font);overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+#hud{display:flex;align-items:center;gap:10px;padding:8px max(12px,env(safe-area-inset-left,0px)) 8px max(12px,env(safe-area-inset-right,0px));padding-top:max(8px,env(safe-area-inset-top,0px));background:var(--paper);border-bottom:3px solid var(--ink);font-size:16px;z-index:5}
+#goal{flex:1;min-width:0;line-height:1.35}
+#goal b{color:var(--leaf)}
+.btn{font-family:var(--font);font-size:16px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);border-radius:8px;padding:8px 12px;cursor:pointer;box-shadow:0 3px 0 var(--ink);min-height:44px}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.btn:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+.btn.pri{background:var(--sun)}
+.btn.sel{background:var(--leaf);color:#fff}
+.btn[disabled]{opacity:.45;cursor:default}
+#stage{position:relative;flex:1;min-height:0}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+#toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:6px 14px;border-radius:20px;font-size:15px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+#toast.on{opacity:1}
+/* 對話框 */
+#dlg{position:absolute;left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));bottom:max(10px,env(safe-area-inset-bottom,0px));background:var(--paper);border:3px solid var(--ink);border-radius:10px;padding:12px 16px;font-size:18px;line-height:1.6;z-index:8;max-width:760px;margin:0 auto;box-shadow:0 5px 0 rgba(0,0,0,.35)}
+#dlgName{font-weight:700;color:var(--leaf);font-size:15px;letter-spacing:.05em}
+#dlgText{min-height:2.2em}
+#dlgCh{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+#dlgCh .btn{text-align:left}
+#dlgNext{position:absolute;right:12px;bottom:6px;font-size:13px;color:var(--ink2)}
+/* 觸控 */
+#pad{position:absolute;left:max(12px,env(safe-area-inset-left,0px));bottom:max(14px,env(safe-area-inset-bottom,0px));width:156px;height:156px;z-index:6}
+#pad button{position:absolute;width:52px;height:52px;border-radius:10px;border:2px solid var(--ink);background:rgba(238,242,226,.85);font-size:20px;color:var(--ink);font-family:var(--font)}
+#pad .u{left:52px;top:0}#pad .d{left:52px;top:104px}#pad .l{left:0;top:52px}#pad .r{left:104px;top:52px}
+#act{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:max(30px,env(safe-area-inset-bottom,0px));width:76px;height:76px;border-radius:50%;border:3px solid var(--ink);background:var(--sun);font-family:var(--font);font-size:18px;font-weight:700;color:var(--ink);z-index:6;box-shadow:0 4px 0 var(--ink)}
+/* 視窗 */
+.modal{position:absolute;inset:0;background:rgba(20,28,24,.55);display:flex;align-items:center;justify-content:center;z-index:10;padding:12px}
+.card{background:var(--paper);border:3px solid var(--ink);border-radius:12px;width:100%;max-width:640px;max-height:100%;overflow:auto;padding:18px 20px;font-size:17px;line-height:1.6;box-shadow:0 6px 0 rgba(0,0,0,.35)}
+.card h2{margin:0 0 8px;font-size:22px;text-wrap:balance}
+.card h3{margin:14px 0 6px;font-size:17px;color:var(--leaf)}
+.clue{background:#fff;border:2px dashed var(--ink2);border-radius:8px;padding:10px 12px;margin:10px 0}
+.clue small{display:block;color:var(--ink2);font-size:13px}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.row .btn{flex:1;min-width:130px}
+.tag{display:inline-block;font-size:12px;border-radius:10px;padding:0 8px;margin-right:6px;border:1.5px solid var(--ink)}
+.tag.obs{background:#d9ecf5}.tag.inf{background:#f6e2c8}
+.hint{background:var(--paper2);border-radius:8px;padding:8px 10px;margin:8px 0;font-size:15px}
+.pots{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pot{background:#fff;border:2px solid var(--ink);border-radius:10px;padding:10px;min-width:0}
+.pot h4{margin:0 0 6px}
+.var{margin:6px 0;font-size:15px}
+.var .opts{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}
+.var .opts .btn{font-size:14px;padding:4px 8px;min-height:36px;box-shadow:0 2px 0 var(--ink)}
+.fixed{font-size:15px;color:var(--ink2)}
+.bars{display:flex;gap:30px;align-items:flex-end;justify-content:center;height:140px;margin:10px 0;border-bottom:2px solid var(--ink)}
+.bar{width:60px;background:var(--leaf);border-radius:6px 6px 0 0;position:relative;transition:height 1s}
+.bar span{position:absolute;top:-24px;left:0;right:0;text-align:center;font-size:14px;font-variant-numeric:tabular-nums}
+.barlab{display:flex;gap:30px;justify-content:center;font-size:14px}.barlab div{width:60px;text-align:center}
+.ev{display:flex;gap:8px;align-items:flex-start;background:#fff;border:2px solid var(--ink2);border-radius:8px;padding:8px;margin:6px 0;cursor:pointer;font-size:15px}
+.ev.on{border-color:var(--leaf);background:#e6f1db}
+.ev input{margin-top:5px;width:18px;height:18px}
+#title .card{text-align:left}
+.big{font-size:30px;margin:0 0 4px}
+.stat{display:grid;grid-template-columns:1fr auto;gap:4px 12px;background:#fff;border-radius:8px;padding:10px 12px;font-size:15px;font-variant-numeric:tabular-nums}
+.foot{font-size:12px;color:var(--ink2);margin-top:10px}
+@media (max-width:520px){.pots{grid-template-columns:1fr}#dlg{font-size:16px}.card{font-size:16px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div id="goal">去找林老師</div>
+    <button class="btn" id="bookBtn" aria-label="打開筆記本">📓 <span id="cnt">0</span></button>
+  </div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="toast"></div>
+    <div id="pad">
+      <button class="u" data-d="0" aria-label="上">▲</button>
+      <button class="l" data-d="3" aria-label="左">◀</button>
+      <button class="r" data-d="1" aria-label="右">▶</button>
+      <button class="d" data-d="2" aria-label="下">▼</button>
+    </div>
+    <button id="act" aria-label="互動">查看</button>
+    <div id="dlg" hidden>
+      <div id="dlgName"></div>
+      <div id="dlgText"></div>
+      <div id="dlgCh"></div>
+      <div id="dlgNext">點一下繼續 ▸</div>
+    </div>
+    <div class="modal" id="modal" hidden><div class="card" id="mcard"></div></div>
+    <div class="modal" id="title">
+      <div class="card">
+        <p class="big">🌻 向日葵的問號</p>
+        <p>學校有兩塊向日葵花圃。同一個學期種的，<b>東邊那塊卻比西邊高了一個頭</b>。</p>
+        <p>林老師說，週五自然課要請你上台說說看：為什麼？</p>
+        <p>到校園裡問人、看東西、做實驗。你找到的線索會記在筆記本裡。</p>
+        <div class="hint">操作：方向鍵／WASD 或左下方向鈕移動；空白鍵、Enter 或「查看」鈕和人說話、查看東西。</div>
+        <div class="row"><button class="btn pri" id="startBtn">開始調查</button></div>
+        <p class="foot">約 10 分鐘｜本遊戲由Peiching開發，角色與情境均為虛構</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(()=>{
+"use strict";
+// ================= 工具箱：地圖 =================
+const W=30,H=20;
+const M=[];
+for(let y=0;y<H;y++){M.push([]);for(let x=0;x<W;x++)M[y].push((x===0||y===0||x===W-1||y===H-1)?'#':'.');}
+const rect=(x0,y0,x1,y1,c)=>{for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)M[y][x]=c;};
+rect(1,1,28,4,'W'); rect(0,5,29,5,'#');
+for(let y=1;y<=4;y++){M[y][9]='#';M[y][19]='#';}
+M[3][9]='D';M[3][19]='D';M[5][4]='D';M[5][14]='D';M[5][24]='D';
+rect(1,6,28,6,','); rect(1,13,28,13,','); rect(14,6,14,13,','); rect(4,6,4,13,',');
+rect(6,8,10,10,'F'); rect(17,8,21,10,'F');
+rect(23,7,28,11,'K');
+rect(0,14,8,14,'#'); rect(8,14,8,19,'#'); rect(1,15,7,18,'W'); M[14][4]='D';
+rect(15,15,28,18,'P');
+[[2,8],[2,10],[12,8],[12,10],[27,14],[10,16],[12,18]].forEach(([x,y])=>M[y][x]='T');
+const WALK=new Set(['W','.',',','D','P']);
+const LABELS=[['自然教室',5,1],['走廊',14,1],['圖書館',24,1],['西花圃',8,7],['東花圃',19,7],['廚房',26,9],['工友室',4,15],['操場',22,15]];
+
+// ================= 工具箱：線索卡 =================
+// type: obs=看到／量到／親手做的事；inf=有人猜的
+const CARDS={
+  h:{t:'東花圃的向日葵，比西花圃高一個頭。',src:'林老師',type:'obs',pre:1},
+  sun:{t:'自然社日照紀錄：東、西花圃每天都曬到大約 6 小時太陽。',src:'芷晴學姐',type:'obs',why:'這是自然社一天一天記下來的紀錄，是量到的事。'},
+  soil0:{t:'紀錄本寫著：去年兩塊花圃填的是同一批培養土。',src:'自然社紀錄本',type:'obs',why:'紀錄本記的是當時實際做的事。'},
+  seed:{t:'種子袋上寫「大向日葵」，兩塊花圃用的是同一包。',src:'工友室的種子袋',type:'obs',why:'袋子就在眼前，你親眼看到的。'},
+  sow:{t:'阿德伯說：兩邊是同一天、他自己種下去的。',src:'阿德伯',type:'obs',why:'阿德伯說的是他親手做過的事，不是猜的。'},
+  waterEq:{t:'阿德伯說：每天早上兩邊各澆一桶水，一樣多。',src:'阿德伯',type:'obs',why:'這也是他每天親手做的事。'},
+  kai:{t:'小凱說：一定是東邊太陽比較大啦，這還要問。',src:'小凱',type:'inf',why:'「一定是」後面接的是他的想法，他沒有量過太陽。'},
+  an:{t:'小安說：東邊應該是用了比較好的種子吧。',src:'小安',type:'inf',why:'「應該」是在猜，小安沒看過種子袋。'},
+  auntie:{t:'美玉阿姨笑著說：我猜是煮飯的香味讓花長比較高。',src:'美玉阿姨',type:'inf',why:'阿姨自己說了「我猜」。'},
+  soilW:{t:'西花圃的土摸起來乾乾的，表面有裂縫。',src:'你自己摸的',type:'obs',why:'你親手摸到的。'},
+  soilE:{t:'東花圃的土摸起來濕濕的，靠廚房那頭有一小灘水。',src:'你自己摸的',type:'obs',why:'你親手摸到、親眼看到的。'},
+  ac:{t:'廚房冷氣室外機的排水管一直在滴水，水流進東花圃。',src:'你自己看到的',type:'obs',why:'你站在旁邊親眼看到水滴下來。'},
+  acTime:{t:'美玉阿姨說：廚房冷氣每天從早上開到下午三點。',src:'美玉阿姨',type:'obs',why:'阿姨每天在廚房，這是她親身知道的事。'},
+};
+const WATER_DIFF=['soilE','ac','acTime'];
+
+// ================= 守門：狀態 =================
+const DX=[0,1,0,-1],DY=[-1,0,1,0];
+let S;
+function newState(){return{started:false,cards:{},order:[],sortRight:0,sortTotal:0,tipShown:false,asked:{},questions:0,tests:[],fair:{},reports:0,kai:0,nextQ:false,ended:false,visited:{}};}
+S=newState();
+const P={x:4,y:3,d:0,px:4,py:3,t:1};
+
+// ================= 實體 =================
+const ENT=[
+  {id:'teacher',x:4,y:2,emo:'👩‍🏫',name:'林老師'},
+  {id:'table',x:7,y:2,emo:'🧪',name:'實驗桌',obj:1},
+  {id:'an',x:13,y:2,emo:'👧',name:'小安'},
+  {id:'senior',x:24,y:2,emo:'🧑‍🔬',name:'芷晴學姐'},
+  {id:'book',x:27,y:1,emo:'📒',name:'自然社紀錄本',obj:1},
+  {id:'uncle',x:3,y:16,emo:'👴',name:'阿德伯'},
+  {id:'seedbag',x:6,y:16,emo:'🌰',name:'種子袋',obj:1},
+  {id:'ac',x:23,y:8,emo:'',name:'冷氣室外機',obj:1},
+  {id:'auntie',x:25,y:12,emo:'👩‍🍳',name:'美玉阿姨'},
+  {id:'kai',x:20,y:16,emo:'🧒',name:'小凱'},
+];
+const entAt=(x,y)=>ENT.find(e=>e.x===x&&e.y===y);
+const walkable=(x,y)=>x>=0&&y>=0&&x<W&&y<H&&WALK.has(M[y][x])&&!entAt(x,y);
+
+// ================= 入口：DOM =================
+const $=id=>document.getElementById(id);
+const cv=$('cv'),ctx=cv.getContext('2d');
+let TS=36,VW=0,VH=0,DPR=1;
+function resize(){const r=$('stage').getBoundingClientRect();DPR=Math.min(2,window.devicePixelRatio||1);VW=r.width;VH=r.height;cv.width=VW*DPR;cv.height=VH*DPR;TS=Math.max(28,Math.min(48,Math.floor(Math.min(VW/12,VH/9))));}
+window.addEventListener('resize',resize);
+
+let toastT=0;
+function toast(s){const t=$('toast');t.textContent=s;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),1800);}
+
+// ================= 對話 =================
+let dlg=null;
+function talk(steps,done){dlg={steps,i:0,done};showStep();}
+function showStep(){
+  const st=dlg.steps[dlg.i];$('dlg').hidden=false;
+  $('dlgName').textContent=st.n||'';$('dlgText').textContent=st.t;
+  const ch=$('dlgCh');ch.innerHTML='';
+  $('dlgNext').hidden=!!st.ch;
+  if(st.ch){st.ch.forEach((c,i)=>{const b=document.createElement('button');b.className='btn';b.textContent=(i+1)+'. '+c.t;b.onclick=e=>{e.stopPropagation();choose(i);};ch.appendChild(b);});}
+}
+function advance(){if(!dlg)return;const st=dlg.steps[dlg.i];if(st.ch)return;dlg.i++;if(dlg.i>=dlg.steps.length){const d=dlg.done;dlg=null;$('dlg').hidden=true;d&&d();if(!dlg)processQueue();}else showStep();}
+function choose(i){const st=dlg.steps[dlg.i];if(!st.ch||!st.ch[i])return;const c=st.ch[i];dlg=null;$('dlg').hidden=true;c.go&&c.go();if(!dlg)processQueue();}
+$('dlg').addEventListener('click',advance);
+
+// 問問題迴圈：探究的核心是「自己決定要問什麼」
+function ask(name,key,qs,bye){
+  const avail=qs.filter(q=>!S.asked[key+q.id]&&(!q.need||q.need()));
+  const ch=avail.map(q=>({t:q.q,go:()=>{S.asked[key+q.id]=1;S.questions++;q.fn&&q.fn();talk(q.a.map(t=>({n:name,t})),()=>ask(name,key,qs,bye));}}));
+  ch.push({t:bye||'先這樣，謝謝',go:()=>{}});
+  talk([{n:'你',t:avail.length?'（想問什麼？）':'（好像問得差不多了）',ch}]);
+}
+
+// ================= 線索與分類 =================
+const queue=[];
+function give(id){if(S.cards[id])return;const c=CARDS[id];S.cards[id]={sorted:c.pre?c.type:null};S.order.push(id);if(!c.pre)queue.push(id);toast('📓 新線索');updHud();}
+function processQueue(){if(dlg||!$('modal').hidden)return;if(queue.length)openSort(queue.shift());}
+function openSort(id){
+  const c=CARDS[id];
+  modal(`<h2>這張線索是哪一種？</h2>
+  <div class="clue">${c.t}<small>來源：${c.src}</small></div>
+  ${!S.tipShown&&S.sortTotal>=1?'':''}
+  <div class="row"><button class="btn" data-k="obs">👀 看到、量到、親手做的</button><button class="btn" data-k="inf">💭 有人猜的</button></div>`);
+  $('mcard').querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k,ok=k===c.type;S.sortTotal++;if(ok)S.sortRight++;S.cards[id].sorted=c.type;
+    let tip='';if(!ok&&!S.tipShown){S.tipShown=true;tip='<div class="hint">小技巧：聽到「一定是」「應該」「我猜」，通常就是在猜。說的人親眼看到、親手做過的，才算觀察。</div>';}
+    modal(`<h2>${ok?'分對了':'再想想'}</h2><div class="clue"><span class="tag ${c.type}">${c.type==='obs'?'👀 觀察':'💭 猜測'}</span>${c.t}</div><p>${c.why}</p>${tip}<div class="row"><button class="btn pri" id="okBtn">收進筆記本</button></div>`);
+    $('okBtn').onclick=()=>{closeModal();};
+  });
+}
+function modal(html){$('mcard').innerHTML=html;$('modal').hidden=false;}
+function closeModal(){$('modal').hidden=true;processQueue();updHud();}
+
+// ================= 筆記本 =================
+function openBook(){
+  if(dlg||!$('title').hidden)return;
+  const ids=S.order.filter(id=>S.cards[id].sorted);
+  const row=id=>{const c=card(id);return `<div class="clue"><span class="tag ${c.type}">${c.type==='obs'?'👀 觀察':'💭 猜測'}</span>${c.t}<small>來源：${c.src}</small></div>`;};
+  let hints='';
+  if(S.cards.waterEq&&S.cards.soilE&&!S.cards.ac)hints+='<div class="hint">🤔 阿德伯說兩邊澆一樣多的水，可是東花圃的土比較濕。多出來的水是從哪裡來的？</div>';
+  if(Object.keys(S.fair).length===0&&ids.length>=4)hints+='<div class="hint">🧪 想確定某個原因真的會影響植物，可以去自然教室的實驗桌做實驗。</div>';
+  modal(`<h2>📓 我的觀察筆記</h2>${hints}
+  <h3>👀 觀察（${ids.filter(i=>card(i).type==='obs').length}）</h3>${ids.filter(i=>card(i).type==='obs').map(row).join('')||'<p>還沒有</p>'}
+  <h3>💭 猜測（${ids.filter(i=>card(i).type==='inf').length}）</h3>${ids.filter(i=>card(i).type==='inf').map(row).join('')||'<p>還沒有</p>'}
+  <p class="foot">你問了 ${S.questions} 個問題｜做了 ${S.tests.length} 次實驗</p>
+  <div class="row"><button class="btn pri" id="okBtn">闔上筆記本</button></div>`);
+  $('okBtn').onclick=closeModal;
+}
+$('bookBtn').onclick=openBook;
+function card(id){return CARDS[id]||S.tests.find(t=>t.id===id);}
+
+// ================= 實驗桌 =================
+const VARS=[{k:'sun',n:'陽光',o:['每天曬 6 小時','每天曬 2 小時']},{k:'water',n:'水',o:['一天一杯','一天三杯']},{k:'soil',n:'土',o:['花圃的土','加了肥料的土']},{k:'seed',n:'種子',o:['同一包綠豆','另一包綠豆']}];
+const EFFECT={sun:-5,water:7,soil:4,seed:-2};
+let potB={sun:0,water:0,soil:0,seed:0};
+function openTable(){
+  potB={sun:0,water:0,soil:0,seed:0};
+  const draw=()=>{
+    modal(`<h2>🧪 實驗桌</h2>
+    <p>向日葵長太慢，林老師準備了綠豆。兩盆並排種三天，比比看誰長得高。A 盆照平常的方式，B 盆由你決定要改哪裡。</p>
+    <div class="pots"><div class="pot"><h4>A 盆（照平常）</h4>${VARS.map(v=>`<div class="var">${v.n}：<span class="fixed">${v.o[0]}</span></div>`).join('')}</div>
+    <div class="pot"><h4>B 盆（你來決定）</h4>${VARS.map(v=>`<div class="var">${v.n}<div class="opts">${v.o.map((o,i)=>`<button class="btn ${potB[v.k]===i?'sel':''}" data-v="${v.k}" data-i="${i}">${o}</button>`).join('')}</div></div>`).join('')}</div></div>
+    <div class="row"><button class="btn" id="cBtn">先不做了</button><button class="btn pri" id="goBtn">種下去，三天後看結果</button></div>`);
+    $('mcard').querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{potB[b.dataset.v]=+b.dataset.i;draw();});
+    $('cBtn').onclick=closeModal;$('goBtn').onclick=()=>showResult(runTest({...potB}));
+  };
+  draw();
+}
+function runTest(cfg){
+  const changed=VARS.filter(v=>cfg[v.k]).map(v=>v.k);
+  let hb=12;changed.forEach(k=>hb+=EFFECT[k]);
+  const n=S.tests.length+1;
+  const t={id:'t'+n,n,changed,ha:12,hb,fair:changed.length===1,type:'obs',src:'實驗桌'};
+  const names=changed.map(k=>VARS.find(v=>v.k===k).n);
+  if(changed.length===0){t.t=`實驗 ${n}（兩盆一模一樣）：兩盆都長到 12 公分。`;t.msg='兩盆一模一樣，長得也一樣高。這樣看不出任何東西會不會影響綠豆。';}
+  else if(t.fair){const v=VARS.find(v=>v.k===changed[0]);t.t=`實驗 ${n}（只改「${v.n}」）：B 盆「${v.o[1]}」長到 ${hb} 公分，A 盆 12 公分。`;t.msg=`只改了${v.n}，其他都一樣。所以兩盆差了 ${Math.abs(hb-12)} 公分，可以說是「${v.n}」造成的。`;S.fair[changed[0]]=true;}
+  else{t.t=`實驗 ${n}（同時改了${names.join('、')}）：B 盆 ${hb} 公分，A 盆 12 公分。`;t.msg=`B 盆${hb>12?'比較高':hb<12?'比較矮':'一樣高'}，可是你同時改了${names.join('和')}，分不出是哪一個造成的。`;}
+  S.tests.push(t);
+  if(changed.length>0){S.cards[t.id]={sorted:'obs'};S.order.push(t.id);}
+  updHud();return t;
+}
+function showResult(t){
+  modal(`<h2>三天後……</h2>
+  <div class="bars"><div class="bar" id="ba" style="height:0"><span>${t.ha} cm</span></div><div class="bar" id="bb" style="height:0;background:var(--sun)"><span>${t.hb} cm</span></div></div>
+  <div class="barlab"><div>A 盆</div><div>B 盆</div></div>
+  <p>${t.msg}</p>${t.changed.length?'<p class="foot">結果已記進筆記本。</p>':''}
+  <div class="row"><button class="btn" id="againBtn">再做一次</button><button class="btn pri" id="okBtn">離開實驗桌</button></div>`);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{$('ba').style.height=(t.ha*5)+'px';$('bb').style.height=(t.hb*5)+'px';}));
+  $('okBtn').onclick=closeModal;$('againBtn').onclick=openTable;
+}
+
+// ================= 報告 =================
+const CAUSE={sun:'陽光不一樣',water:'水不一樣',soil:'土不一樣',seed:'種子不一樣'};
+function openReport(){
+  modal(`<h2>跟林老師報告</h2><p>你覺得東花圃長比較高，最主要的原因是什麼？</p>
+  <div class="row">${Object.entries(CAUSE).map(([k,v])=>`<button class="btn" data-c="${k}">${v}</button>`).join('')}</div>
+  <div class="row"><button class="btn" data-c="unsure">我還不確定，先交「目前知道的」</button></div>
+  <div class="row"><button class="btn" id="cBtn">我再查一下</button></div>`);
+  $('cBtn').onclick=closeModal;
+  $('mcard').querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const c=b.dataset.c;if(c==='unsure'){closeModal();endingB();}else pickEvidence(c);});
+}
+function pickEvidence(cause){
+  const ids=S.order.filter(id=>S.cards[id].sorted&&id!=='h');const sel=new Set();
+  const draw=()=>{
+    modal(`<h2>挑出證據（最多 4 張）</h2><p>你要說：<b>${CAUSE[cause]}</b>。哪些線索可以說服大家？</p>
+    ${ids.map(id=>{const c=card(id);return `<label class="ev ${sel.has(id)?'on':''}"><input type="checkbox" data-e="${id}" ${sel.has(id)?'checked':''}><span><span class="tag ${c.type}">${c.type==='obs'?'👀':'💭'}</span>${c.t}</span></label>`;}).join('')||'<p>筆記本還是空的。</p>'}
+    <div class="row"><button class="btn" id="bBtn">換一個原因</button><button class="btn pri" id="sBtn" ${sel.size?'':'disabled'}>交給林老師（${sel.size}）</button></div>`);
+    $('mcard').querySelectorAll('[data-e]').forEach(i=>i.onchange=()=>{const id=i.dataset.e;if(i.checked){if(sel.size<4)sel.add(id);}else sel.delete(id);draw();});
+    $('bBtn').onclick=openReport;$('sBtn').onclick=()=>{$('modal').hidden=true;judge(cause,[...sel]);};
+  };
+  draw();
+}
+function judge(cause,sel){
+  S.reports++;
+  const T='林老師';const back=lines=>talk([...lines.map(t=>({n:T,t})),{n:'你',t:'（回去再查查看。）'}]);
+  const inf=sel.filter(id=>card(id).type==='inf');
+  if(inf.length){return back([`「${card(inf[0]).t}」這張是有人猜的。`,'猜的可以當作調查的方向，但不能拿來當證據。把它換掉，再交一次。']);}
+  if(cause!=='water'){
+    const name={sun:'陽光',soil:'土',seed:'種子'}[cause];
+    const same={sun:'sun',soil:'soil0',seed:'seed'}[cause];
+    const l=[];
+    if(S.fair[cause])l.push(`你的實驗證明${name}會影響綠豆長多高，這點是對的。`);
+    if(S.cards[same])l.push(`可是你筆記本裡有一張：「${CARDS[same].t}」`,`兩邊的${name}一樣，就沒辦法解釋為什麼只有一邊比較高。`);
+    else l.push(`可是，東、西花圃的${name}真的不一樣嗎？你有查過嗎？`,'想想看，學校裡有誰會記錄或照顧這兩塊花圃。');
+    return back(l);
+  }
+  const fairW=sel.some(id=>{const t=S.tests.find(t=>t.id===id);return t&&t.fair&&t.changed[0]==='water';});
+  const unfairW=sel.some(id=>{const t=S.tests.find(t=>t.id===id);return t&&!t.fair&&t.changed.includes('water');});
+  const diff=sel.some(id=>WATER_DIFF.includes(id));
+  if(!S.fair.water){
+    if(unfairW)return back(['這個實驗同時改了好幾個地方，B 盆長比較高，可能是水，也可能是別的。','只改水量、其他都一樣，再做一次看看？']);
+    return back(['東花圃的水好像比較多，這個你注意到了。','可是「水多就會長比較高」，你怎麼確定？說不定水太多反而不好。','實驗桌那邊可以試試看。']);
+  }
+  if(!fairW)return back(['你做過只改水量的那個實驗，對吧？','那是很重要的證據，怎麼沒有放進來？']);
+  if(!diff)return back(['實驗證明水多，綠豆會長比較高。','可是阿德伯說兩邊每天都澆一樣多的水耶。','你怎麼知道東花圃的水真的比較多？']);
+  endingA(sel);
+}
+
+// ================= 結局 =================
+function stats(){
+  const fairN=S.tests.filter(t=>t.fair).length;
+  return `<div class="stat"><span>收集的線索</span><b>${S.order.length} 張</b><span>分對觀察／猜測</span><b>${S.sortRight} / ${S.sortTotal}</b><span>你問的問題</span><b>${S.questions} 個</b><span>做的實驗（只改一個地方的）</span><b>${S.tests.length}（${fairN}）次</b><span>交報告的次數</span><b>${S.reports} 次</b></div>`;
+}
+function endingA(sel){
+  S.ended='A';
+  const ruled=[S.cards.sun&&'陽光',S.cards.soil0&&'土',(S.cards.seed||S.cards.sow)&&'種子'].filter(Boolean);
+  const kaiLine={1:'小凱在旁邊聽完，小聲說：「原來不是太陽喔。」',2:'小凱坐在後面，看著你畫的長條圖。',3:'下課時小凱跑來看你的綠豆：「所以真的是冷氣的水喔？我要去看那根管子。」'}[S.kai]||'';
+  showEnd(`<p class="big">🌻 水是從冷氣來的</p>
+  <p>週五的自然課，你把兩盆綠豆和筆記本帶到台前。</p>
+  <p>阿德伯每天確實兩邊各澆一桶，可是東花圃旁邊多了一根冷氣排水管，從早上滴到下午三點。東邊的向日葵每天多喝了好幾桶水。</p>
+  ${ruled.length?`<p>你也說明了為什麼不是${ruled.join('、')}：你查過，兩邊一樣。</p>`:''}
+  <p>林老師問台下：「剛剛的報告裡，有哪一句是用猜的？」大家翻著你的筆記找了一陣子，沒人舉手。</p>
+  ${kaiLine?`<p>${kaiLine}</p>`:''}
+  ${S.nextQ?`<div class="hint">📓 你的筆記本最後一頁多了一個問題：<br>「冷氣每天滴掉那麼多水，可以接起來澆西花圃嗎？西花圃會不會長得跟東邊一樣高？」</div>`:''}
+  ${stats()}`, false);
+}
+function endingB(){
+  S.ended='B';S.reports++;
+  const ruled=[],unknown=[];
+  (S.cards.sun?ruled:unknown).push('陽光');(S.cards.soil0?ruled:unknown).push('土');((S.cards.seed||S.cards.sow)?ruled:unknown).push('種子');
+  const water=S.cards.ac||S.cards.soilE;
+  showEnd(`<p class="big">📝 還沒寫完的報告</p>
+  <p>你交出一張紙，上面寫著：</p>
+  <div class="clue">已經查過、兩邊一樣的：${ruled.join('、')||'（還沒有）'}<br>還沒查清楚的：${unknown.concat(water?[]:['水']).join('、')||'（都查過了）'}<br>${water?'發現東花圃的土比較濕，但還沒證明水多會讓它長高。':'下一步想做：去摸摸看兩邊的土、問問照顧花圃的人。'}</div>
+  <p>林老師看了一會兒：「沒有答案，但哪些查過、哪些還沒，寫得很清楚。這份我收下了。」</p>
+  <p>「下週還有一堂課。要繼續查嗎？」</p>
+  ${stats()}`, true);
+}
+function showEnd(html,canResume){
+  modal(`${html}<div class="row">${canResume?'<button class="btn pri" id="resBtn">回去繼續調查</button>':''}<button class="btn ${canResume?'':'pri'}" id="rstBtn">重新開始</button></div><p class="foot">本遊戲由Peiching開發，角色與情境均為虛構</p>`);
+  if(canResume)$('resBtn').onclick=()=>{S.ended=false;closeModal();};
+  $('rstBtn').onclick=()=>{S=newState();queue.length=0;ENT.forEach(e=>{});Object.assign(P,{x:4,y:3,d:0,px:4,py:3,t:1});closeModal();$('title').hidden=false;updHud();};
+}
+
+// ================= 互動腳本 =================
+const ACT={
+  teacher(){
+    if(!S.started){
+      S.started=true;give('h');
+      talk([{n:'林老師',t:'你來啦。你有注意到外面兩塊向日葵花圃嗎？'},{n:'林老師',t:'東邊那塊比西邊高了一個頭。週五自然課，我想請你查查看為什麼，上台跟大家說。'},{n:'林老師',t:'植物長得好不好，常常跟陽光、水、土、種子有關。可是到底是哪一個，要你自己去找證據。'},{n:'林老師',t:'想確定某個原因真的有影響，可以用旁邊的實驗桌。查好了，回來跟我報告。'}],
+        ()=>ask('林老師','t',[
+          {id:1,q:'花圃是誰在照顧的？',a:['工友阿德伯。他的工友室在學校西南角，操場旁邊。']},
+          {id:2,q:'有人記錄過這兩塊花圃嗎？',a:['自然社有在記。去圖書館找芷晴，她是自然社的。']},
+          {id:3,q:'東邊和西邊，除了高度，還有哪裡不一樣？',a:['好問題。我也沒仔細看過，你去現場看看？蹲下來、摸一摸都可以。']},
+        ],'我先去看看'));
+      return;
+    }
+    talk([{n:'林老師',t:'查得怎麼樣？'},{n:'你',t:'（要做什麼？）',ch:[
+      {t:'我想報告',go:openReport},
+      {t:'再問老師一個問題',go:()=>ask('林老師','t',[
+        {id:1,q:'花圃是誰在照顧的？',a:['工友阿德伯，工友室在操場旁邊。']},
+        {id:2,q:'有人記錄過這兩塊花圃嗎？',a:['自然社。去圖書館找芷晴。']},
+        {id:3,q:'東邊和西邊，除了高度，還有哪裡不一樣？',a:['你去現場看看？蹲下來、摸一摸都可以。']},
+        {id:4,q:'有人說的話跟我看到的不一樣，怎麼辦？',need:()=>S.cards.waterEq&&S.cards.soilE,a:['兩邊可能都沒說錯。','說不定有一個你還沒看到的東西。去現場，找找看多出來的那一點是從哪來的。']},
+      ])},
+      {t:'還沒，我再去查',go:()=>{}}]}]);
+  },
+  table(){if(!S.started)return talk([{n:'',t:'桌上擺著幾個空盆子和一包綠豆。先去跟林老師說話吧。'}]);openTable();},
+  an(){
+    talk([{n:'小安',t:'你在查向日葵喔？東邊那排超高的。'},{n:'小安',t:'東邊應該是用了比較好的種子吧，我覺得。'}],()=>{give('an');
+      ask('小安','an',[{id:1,q:'你有看過種子嗎？',a:['沒有耶……我只是覺得。種子好像放在工友室？']},{id:2,q:'你每天都會經過花圃嗎？',a:['會啊，我中午去廚房拿餐桶。東邊那邊有時候地上濕濕的，要繞過去。']}]);});
+  },
+  senior(){
+    talk([{n:'芷晴學姐',t:'向日葵？我們自然社這學期每天都有記日照。'},{n:'芷晴學姐',t:'我看看……東花圃、西花圃，每天大概都曬 6 個小時，差不到半小時。'}],()=>{give('sun');
+      ask('芷晴學姐','sr',[{id:1,q:'你們還有記別的嗎？',a:['架子上那本紀錄本有去年整理花圃的紀錄，你可以翻翻看。']},{id:2,q:'你覺得是為什麼？',a:['我也不知道耶。太陽一樣，所以我們社團也覺得很怪。查到跟我說！']}]);});
+  },
+  book(){talk([{n:'',t:'你翻開自然社紀錄本。去年四月那頁寫著：「東、西花圃換新土，用同一批培養土，各 6 包。」'}],()=>give('soil0'));},
+  uncle(){
+    talk([{n:'阿德伯',t:'喔，小朋友，你在查向日葵喔？那是我種的啦。'}],()=>ask('阿德伯','u',[
+      {id:1,q:'兩邊是什麼時候種的？',a:['同一天啊，開學第二週，我一個人種完兩塊。'],fn:()=>give('sow')},
+      {id:2,q:'你怎麼幫它們澆水？',a:['每天早上七點，兩邊各一桶，一樣多，我不會偏心的啦。'],fn:()=>give('waterEq')},
+      {id:3,q:'你覺得東邊為什麼比較高？',a:['我也想知道啊！我都一樣照顧。種子袋還在桌上，你自己看。']},
+    ]));
+  },
+  seedbag(){talk([{n:'',t:'桌上有一個打開過的種子袋，寫著「大向日葵」。裡面還剩一半。阿德伯在旁邊說：兩塊都是用這包。'}],()=>give('seed'));},
+  ac(){talk([{n:'',t:'廚房牆上的冷氣室外機嗡嗡作響。'},{n:'',t:'底下有一根細細的排水管，水一滴一滴流下來，沿著地面流進東花圃。'}],()=>give('ac'));},
+  auntie(){
+    talk([{n:'美玉阿姨',t:'哎唷，來看向日葵喔？東邊那排長好快喔。'}],()=>ask('美玉阿姨','au',[
+      {id:1,q:'阿姨，廚房的冷氣都開多久？',a:['從早上備料開到下午三點洗完鍋子，夏天熱死了，一定要開。'],fn:()=>give('acTime')},
+      {id:2,q:'那根冷氣管滴下來的水，最後都去哪裡？',need:()=>S.cards.ac,a:['流進花圃啊，多的就流到水溝去了吧。','欸，你這樣一問，我也沒想過耶。一天應該滴好幾桶喔。'],fn:()=>{S.nextQ=true;}},
+      {id:3,q:'阿姨你覺得花為什麼長比較高？',a:['我猜喔，是我們煮飯的香味讓它長比較高啦！哈哈。'],fn:()=>give('auntie')},
+    ],'謝謝阿姨'));
+  },
+  kai(){
+    if(S.kai)return talk([{n:'小凱',t:'查出來了沒？'}]);
+    talk([{n:'小凱',t:'你在查向日葵喔？一定是東邊太陽比較大啦，這還要問。'},{n:'小凱',t:'你每次都問好多問題耶。'},{n:'你',t:'（要怎麼回？）',ch:[
+      {t:'可能吧，我想去確認看看。',go:()=>{S.kai=1;talk([{n:'小凱',t:'確認太陽？要怎麼確認啦。'}]);}},
+      {t:'（不想解釋，先走開）',go:()=>{S.kai=2;talk([{n:'',t:'小凱聳聳肩，繼續拍他的球。'}]);}},
+      {t:S.cards.sow?'你不好奇嗎？兩邊明明是同一天種的。':'你不好奇嗎？明明是一起種的。',go:()=>{S.kai=3;talk([{n:'小凱',t:'……蛤，同一天喔？那我也不知道了。'},{n:'小凱',t:'查到要跟我說喔。'}]);}},
+    ]}],null);
+    give('kai');
+  },
+  bedW(){talk([{n:'',t:'西花圃的向日葵大概到你的肩膀。'},{n:'',t:'你蹲下來摸摸土：乾乾的，表面裂了好幾條縫。'}],()=>give('soilW'));},
+  bedE(){talk([{n:'',t:'東花圃的向日葵比你高一個頭，花盤朝著太陽。'},{n:'',t:'你蹲下來摸摸土：濕濕涼涼的。靠廚房那一頭，還積著一小灘水。'}],()=>give('soilE'));},
+};
+function target(){
+  const fx=P.x+DX[P.d],fy=P.y+DY[P.d];
+  const e=entAt(fx,fy);if(e)return e.id;
+  if(M[fy]&&M[fy][fx]==='F')return fx<14?'bedW':'bedE';
+  for(let d=0;d<4;d++){const x=P.x+DX[d],y=P.y+DY[d];const e2=entAt(x,y);if(e2)return e2.id;}
+  for(let d=0;d<4;d++){const x=P.x+DX[d],y=P.y+DY[d];if(M[y]&&M[y][x]==='F')return x<14?'bedW':'bedE';}
+  return null;
+}
+function interact(){
+  if(!$('title').hidden||!$('modal').hidden)return;
+  if(dlg)return advance();
+  const id=target();if(!id)return;
+  if(!S.started&&id!=='teacher'){return talk([{n:'',t:'先去自然教室找林老師吧。'}]);}
+  S.visited[id]=1;ACT[id]();
+}
+
+// ================= HUD =================
+function updHud(){
+  $('cnt').textContent=S.order.length;
+  let g;
+  if(!S.started)g='去<b>自然教室</b>找林老師';
+  else if(S.order.length<5)g=`到校園各處找線索（已收集 <b>${S.order.length}</b> 張）`;
+  else if(!Object.keys(S.fair).length)g='到<b>實驗桌</b>做實驗：一次只改一個地方';
+  else g='整理證據，回去跟<b>林老師</b>報告';
+  $('goal').innerHTML=g;
+}
+
+// ================= 輸入 =================
+const held=new Set();
+const KEY={ArrowUp:0,KeyW:0,ArrowRight:1,KeyD:1,ArrowDown:2,KeyS:2,ArrowLeft:3,KeyA:3};
+window.addEventListener('keydown',e=>{
+  if(e.code in KEY){held.add(KEY[e.code]);e.preventDefault();}
+  else if(e.code==='Space'||e.code==='Enter'){e.preventDefault();if(!$('title').hidden)return;interact();}
+  else if(dlg&&/^Digit[1-9]$/.test(e.code))choose(+e.code.slice(5)-1);
+});
+window.addEventListener('keyup',e=>{if(e.code in KEY)held.delete(KEY[e.code]);});
+document.querySelectorAll('#pad button').forEach(b=>{
+  const d=+b.dataset.d;
+  b.addEventListener('pointerdown',e=>{e.preventDefault();held.add(d);b.setPointerCapture&&b.setPointerCapture(e.pointerId);});
+  ['pointerup','pointercancel','pointerleave'].forEach(ev=>b.addEventListener(ev,()=>held.delete(d)));
+});
+$('act').addEventListener('click',interact);
+$('startBtn').onclick=()=>{$('title').hidden=true;updHud();};
+
+// ================= 迴圈與繪圖 =================
+let last=0,moveCD=0;
+function step(dt){
+  P.t=Math.min(1,P.t+dt/130);
+  moveCD-=dt;
+  if(dlg||!$('modal').hidden||!$('title').hidden){held.clear();return;}
+  if(P.t>=1&&moveCD<=0&&held.size){
+    const d=[...held].pop();P.d=d;const nx=P.x+DX[d],ny=P.y+DY[d];
+    if(walkable(nx,ny)){P.px=P.x;P.py=P.y;P.x=nx;P.y=ny;P.t=0;}
+    moveCD=135;
+  }
+}
+const TC={'#':'#5d5a4f','W':'#d9cba8','.':'#9cc27a',',':'#cdbf94','D':'#b08a55','F':'#7a5a3a','K':'#b9b1a0','T':'#9cc27a','P':'#c9785a'};
+function draw(now){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle='#22302a';ctx.fillRect(0,0,VW,VH);
+  const ease=P.t;const cx=(P.px+(P.x-P.px)*ease)*TS+TS/2,cy=(P.py+(P.y-P.py)*ease)*TS+TS/2;
+  let ox=Math.round(cx-VW/2),oy=Math.round(cy-VH/2);
+  ox=Math.max(Math.min(ox,W*TS-VW),0);oy=Math.max(Math.min(oy,H*TS-VH),0);
+  if(W*TS<VW)ox=-(VW-W*TS)/2;if(H*TS<VH)oy=-(VH-H*TS)/2;
+  const x0=Math.max(0,Math.floor(ox/TS)),y0=Math.max(0,Math.floor(oy/TS)),x1=Math.min(W-1,Math.ceil((ox+VW)/TS)),y1=Math.min(H-1,Math.ceil((oy+VH)/TS));
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    const c=M[y][x],sx=x*TS-ox,sy=y*TS-oy;
+    ctx.fillStyle=TC[c];ctx.fillRect(sx,sy,TS+1,TS+1);
+    if(c==='W'&&(x+y)%2===0){ctx.fillStyle='rgba(0,0,0,.04)';ctx.fillRect(sx,sy,TS,TS);}
+    if(c==='.'&&(x*7+y*3)%5===0){ctx.fillStyle='#86b066';ctx.fillRect(sx+TS*.3,sy+TS*.5,2,5);ctx.fillRect(sx+TS*.6,sy+TS*.3,2,4);}
+    if(c==='P'&&y===15||c==='P'&&y===18){ctx.fillStyle='rgba(255,255,255,.5)';ctx.fillRect(sx,sy+(y===15?2:TS-4),TS,2);}
+    if(c==='#'){ctx.fillStyle='#4a473e';ctx.fillRect(sx,sy+TS*.7,TS,TS*.3);}
+    if(c==='K'){ctx.fillStyle='#a49c8a';ctx.fillRect(sx,sy,TS,3);}
+    if(c==='T'){ctx.fillStyle='#6b4a2e';ctx.fillRect(sx+TS*.42,sy+TS*.55,TS*.16,TS*.4);ctx.fillStyle='#3f6b33';ctx.beginPath();ctx.arc(sx+TS/2,sy+TS*.42,TS*.38,0,7);ctx.fill();}
+    if(c==='F')drawFlower(sx,sy,x>=14,now,x,y);
+  }
+  // 水灘與排水管
+  const wx=21*TS-ox,wy=8*TS-oy;
+  ctx.fillStyle='rgba(60,127,166,.55)';ctx.beginPath();ctx.ellipse(wx+TS*.6,wy+TS*.75,TS*.4,TS*.18,0,0,7);ctx.fill();
+  ctx.strokeStyle='#8a8a8a';ctx.lineWidth=Math.max(2,TS*.08);ctx.beginPath();ctx.moveTo(23*TS-ox+TS*.2,wy+TS*.6);ctx.lineTo(22*TS-ox,wy+TS*.75);ctx.lineTo(wx+TS*.95,wy+TS*.75);ctx.stroke();
+  const dp=(now/600)%1;ctx.fillStyle='#3c7fa6';ctx.beginPath();ctx.arc(22*TS-ox+TS*(1-dp),wy+TS*.75,TS*.07,0,7);ctx.fill();
+  // 標籤
+  ctx.font=`700 ${Math.round(TS*.36)}px ${getComputedStyle(document.body).fontFamily}`;ctx.textAlign='center';ctx.textBaseline='middle';
+  LABELS.forEach(([s,x,y])=>{const sx=x*TS-ox+TS/2,sy=y*TS-oy+TS/2;ctx.fillStyle='rgba(34,48,42,.55)';ctx.fillText(s,sx,sy);});
+  // 實體
+  const near=target();
+  ctx.font=`${Math.round(TS*.72)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
+  ENT.forEach(e=>{
+    const sx=e.x*TS-ox,sy=e.y*TS-oy;if(sx<-TS||sy<-TS||sx>VW||sy>VH)return;
+    if(e.id==='ac'){ctx.fillStyle='#e8e8e2';ctx.fillRect(sx+TS*.1,sy+TS*.15,TS*.8,TS*.7);ctx.strokeStyle='#666';ctx.lineWidth=2;ctx.strokeRect(sx+TS*.1,sy+TS*.15,TS*.8,TS*.7);ctx.beginPath();ctx.arc(sx+TS*.5,sy+TS*.5,TS*.25,0,7);ctx.stroke();const a=now/120;ctx.beginPath();ctx.moveTo(sx+TS*.5+Math.cos(a)*TS*.22,sy+TS*.5+Math.sin(a)*TS*.22);ctx.lineTo(sx+TS*.5-Math.cos(a)*TS*.22,sy+TS*.5-Math.sin(a)*TS*.22);ctx.stroke();}
+    else{
+      if(!e.obj){ctx.fillStyle='rgba(0,0,0,.18)';ctx.beginPath();ctx.ellipse(sx+TS/2,sy+TS*.88,TS*.3,TS*.1,0,0,7);ctx.fill();}
+      else{ctx.fillStyle='#8a6a44';ctx.fillRect(sx+TS*.08,sy+TS*.55,TS*.84,TS*.35);}
+      ctx.fillStyle="#000";ctx.fillText(e.emo,sx+TS/2,sy+TS*.48);
+    }
+    if(S.started&&!S.visited[e.id]&&!e.obj){bubble(sx+TS/2,sy-TS*.05,'?',now);}
+    if(!S.started&&e.id==='teacher')bubble(sx+TS/2,sy-TS*.05,'!',now);
+    if(near===e.id&&$('modal').hidden&&!dlg){ctx.strokeStyle='#e9a51b';ctx.lineWidth=3;ctx.strokeRect(sx+2,sy+2,TS-4,TS-4);}
+  });
+  // 玩家
+  drawPlayer(cx-ox,cy-oy);
+}
+function bubble(x,y,s,now){const b=Math.sin(now/250)*3;ctx.save();ctx.fillStyle='#fff';ctx.strokeStyle='#22302a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y+b,TS*.2,0,7);ctx.fill();ctx.stroke();ctx.fillStyle='#22302a';ctx.font=`700 ${Math.round(TS*.3)}px sans-serif`;ctx.fillText(s,x,y+b+1);ctx.restore();ctx.font=`${Math.round(TS*.72)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;}
+function drawFlower(sx,sy,tall,now,x,y){
+  ctx.fillStyle=tall?'#5a4630':'#8c7051';ctx.fillRect(sx,sy,TS+1,TS+1);
+  if(!tall&&(x+y)%2){ctx.strokeStyle='#6e563c';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(sx+TS*.2,sy+TS*.8);ctx.lineTo(sx+TS*.5,sy+TS*.65);ctx.lineTo(sx+TS*.7,sy+TS*.9);ctx.stroke();}
+  const h=tall?TS*.85:TS*.45,sw=Math.sin(now/900+x)*1.5;
+  const bx=sx+TS/2,by=sy+TS*.95;
+  ctx.strokeStyle='#3f6b33';ctx.lineWidth=Math.max(2,TS*.07);ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(bx+sw,by-h);ctx.stroke();
+  ctx.fillStyle='#4f7a3a';ctx.beginPath();ctx.ellipse(bx-TS*.12,by-h*.45,TS*.12,TS*.05,-.5,0,7);ctx.fill();
+  const r=tall?TS*.24:TS*.17;ctx.fillStyle='#e9a51b';ctx.beginPath();ctx.arc(bx+sw,by-h,r,0,7);ctx.fill();ctx.fillStyle='#6b4a2e';ctx.beginPath();ctx.arc(bx+sw,by-h,r*.45,0,7);ctx.fill();
+}
+function drawPlayer(x,y){
+  const s=TS;ctx.fillStyle='rgba(0,0,0,.2)';ctx.beginPath();ctx.ellipse(x,y+s*.38,s*.28,s*.09,0,0,7);ctx.fill();
+  ctx.fillStyle='#3c7fa6';ctx.fillRect(x-s*.2,y-s*.02,s*.4,s*.34);
+  ctx.fillStyle='#f2c9a0';ctx.beginPath();ctx.arc(x,y-s*.18,s*.2,0,7);ctx.fill();
+  ctx.fillStyle='#e9a51b';ctx.beginPath();ctx.arc(x,y-s*.25,s*.21,Math.PI,0);ctx.fill();ctx.fillRect(x+(P.d===3?-s*.32:0),y-s*.27,s*.32,s*.06);
+  ctx.fillStyle='#22302a';const ex=[0,s*.07,0,-s*.07][P.d];if(P.d!==0){ctx.fillRect(x-s*.08+ex,y-s*.17,s*.04,s*.05);ctx.fillRect(x+s*.05+ex,y-s*.17,s*.04,s*.05);}
+  ctx.fillStyle='#fff';ctx.fillRect(x+s*.1,y+s*.05,s*.12,s*.14);
+}
+function loop(now){const dt=Math.min(50,now-(last||now));last=now;try{step(dt);draw(now);}catch(err){console.error(err);$('goal').textContent='出錯了：'+err.message;}requestAnimationFrame(loop);}
+resize();updHud();requestAnimationFrame(loop);
+
+// ================= 測試積木 =================
+window.__GAME={get S(){return S},P,ACT,interact,advance,choose,runTest,judge,endingB,openReport,give,
+  get dlg(){return dlg},modalOpen:()=>!$('modal').hidden,
+  closeModal,start:()=>$('startBtn').click(),
+  tp(x,y,d){Object.assign(P,{x,y,px:x,py:y,t:1,d});}};
+})();
+</script>
+</body>
+</html>
